@@ -43,3 +43,6 @@ $string['description'] = 'Description';
 $string['origin'] = 'Origin';
 $string['ip'] = 'IP address';
 $string['course'] = 'Course';
+$string['statistics_mode'] = 'Statistics:';
+$string['mode_hits'] = 'Hits';
+$string['mode_users'] = 'Active users';

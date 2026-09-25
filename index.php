@@ -50,7 +50,12 @@ $PAGE->requires->js_call_amd('block_logreport/logreport', 'InitDatatable');
 echo $OUTPUT->header();
 $output = $PAGE->get_renderer('block_logreport');
 
-echo $output->charts();
+$mode = optional_param('mode', 'hits', PARAM_ALPHA);
+if (!in_array($mode, ['hits', 'users'])) {
+    $mode = 'hits';
+}
+
+echo $output->charts($mode);
 $reportlog = new report_log_renderable('logstore_standard', 1);
 echo $output->report_selector_form($reportlog);
 echo $output->render_from_template('block_logreport/reporttable', $context);

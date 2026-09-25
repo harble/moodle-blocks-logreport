@@ -43,3 +43,6 @@ $string['description'] = '描述';
 $string['origin'] = '事件来源';
 $string['ip'] = 'IP地址';
 $string['course'] = '课程';
+$string['statistics_mode'] = '统计方式:';
+$string['mode_hits'] = '点击数';
+$string['mode_users'] = '活跃用户';

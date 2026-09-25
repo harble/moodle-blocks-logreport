@@ -185,13 +185,35 @@ class dataprovider extends report_log_table_log {
     /**
      * Build hit-count buckets for a chart tab.
      *
-     * Uses MySQL DATE_FORMAT + GROUP BY for efficient aggregation.
-     * Gaps (hours/days with no logs) are auto-filled with zero counts.
+     * Delegates to get_bucket_counts() with COUNT(*).
      *
      * @param string $duration hourly|daily|monthly
      * @return array label => hit count, chronological order
      */
     public function get_hits($duration = 'weekly') {
+        return $this->get_bucket_counts($duration, 'COUNT(*)');
+    }
+
+    /**
+     * Build active-user count buckets for a chart tab.
+     *
+     * Delegates to get_bucket_counts() with COUNT(DISTINCT userid).
+     *
+     * @param string $duration hourly|daily|monthly
+     * @return array label => active user count, chronological order
+     */
+    public function get_active_users($duration = 'weekly') {
+        return $this->get_bucket_counts($duration, 'COUNT(DISTINCT userid)');
+    }
+
+    /**
+     * Common helper: run GROUP BY query and fill gaps.
+     *
+     * @param string $duration hourly|daily|monthly
+     * @param string $countexpr SQL aggregation expression (e.g. COUNT(*) or COUNT(DISTINCT userid))
+     * @return array label => count, chronological order
+     */
+    private function get_bucket_counts($duration, $countexpr) {
         global $DB;
 
         switch ($duration) {
@@ -210,9 +232,9 @@ class dataprovider extends report_log_table_log {
                 break;
         }
 
-        // Use MySQL GROUP BY to aggregate counts directly, avoids transferring all raw rows to PHP.
+        // Use MySQL GROUP BY to aggregate counts directly.
         $sql = "SELECT DATE_FORMAT(FROM_UNIXTIME(timecreated), '{$sqlformat}') AS label,
-                       COUNT(*) AS hits
+                       {$countexpr} AS value
                   FROM {logstore_standard_log}
                  WHERE timecreated > :since
               GROUP BY label
@@ -221,16 +243,16 @@ class dataprovider extends report_log_table_log {
         $records = $DB->get_records_sql($sql, ['since' => $since]);
 
         // Convert internal sortable labels back to display labels.
-        $hitreport = [];
+        $report = [];
         foreach ($records as $record) {
             $displaylabel = $this->format_display_label($record->label, $duration);
-            $hitreport[$displaylabel] = (int)$record->hits;
+            $report[$displaylabel] = (int)$record->value;
         }
 
         // Fill in gaps (hours/days/months with no logs) with zero counts.
-        $hitreport = $this->fill_gaps($hitreport, $duration, $since);
+        $report = $this->fill_gaps($report, $duration, $since);
 
-        return $hitreport;
+        return $report;
     }
 
     /**
@@ -306,10 +328,17 @@ class dataprovider extends report_log_table_log {
         return $result;
     }
 
-    public function generate_graphdata() {
+    /**
+     * Generate chart data for all three time buckets.
+     *
+     * @param string $mode 'hits' for total log count, 'users' for unique active users
+     * @return array Array keyed by duration (hourly/daily/monthly), each value is label => count
+     */
+    public function generate_graphdata($mode = 'hits') {
         $chartdata = [];
+        $method = ($mode === 'users') ? 'get_active_users' : 'get_hits';
         foreach (['hourly', 'daily', 'monthly'] as $format) {
-            $chartdata[$format] = $this->get_hits($format);
+            $chartdata[$format] = $this->$method($format);
         }
         return $chartdata;
     }

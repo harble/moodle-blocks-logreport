@@ -43,7 +43,7 @@ class renderer extends plugin_renderer_base {
      * @param report_log_renderable $reportlog log report.
      */
     public function report_selector_form($reportlog) {
-        $output = html_writer::start_tag('form', array('class' => 'logselecform', 'action' => $reportlog->url, 'method' => 'get'));
+        $output = html_writer::start_tag('form', array('class' => 'logselecform', 'action' => $reportlog->url, 'method' => 'get', 'style' => 'margin: 15px 0;'));
         $output .= html_writer::start_div('d-flex flex-wrap align-items-center gap-2');
         $output .= html_writer::empty_tag('input', array('type' => 'hidden',
                                                          'name' => 'chooselog',
@@ -170,22 +170,63 @@ class renderer extends plugin_renderer_base {
         $output .= html_writer::end_tag('form');
         return $output;
     }
-    public function charts(){
+    /**
+     * Render a mode selector (Hits vs Active Users) as a button group.
+     *
+     * @param string $currentmode current mode ('hits' or 'users')
+     * @return string HTML
+     */
+    public function report_mode_selector($currentmode) {
+        $url = $this->page->url;
+
+        $output = html_writer::start_div('mb-2', ['style' => 'margin: 15px 0 !important;']);
+        $output .= html_writer::tag('strong', get_string('statistics_mode', 'block_logreport') . ' ');
+
+        $urlhits = new moodle_url($url, ['mode' => 'hits']);
+        $hitsclass = ($currentmode === 'hits') ? 'btn btn-primary btn-sm' : 'btn btn-outline-primary btn-sm';
+        $output .= html_writer::link($urlhits, get_string('mode_hits', 'block_logreport'),
+            ['class' => $hitsclass]);
+
+        $output .= ' ';
+
+        $urlusers = new moodle_url($url, ['mode' => 'users']);
+        $usersclass = ($currentmode === 'users') ? 'btn btn-primary btn-sm' : 'btn btn-outline-primary btn-sm';
+        $output .= html_writer::link($urlusers, get_string('mode_users', 'block_logreport'),
+            ['class' => $usersclass]);
+
+        $output .= html_writer::end_div();
+        return $output;
+    }
+
+    /**
+     * Render chart tabs for a given statistics mode.
+     *
+     * @param string $mode 'hits' or 'users'
+     * @return string HTML
+     */
+    public function charts($mode = 'hits') {
         global $CFG;
-            $tabsdata = (new \block_logreport\dataprovider)->generate_graphdata();
-            foreach ($tabsdata as $key => $tab) {
-                $chart = new \core\chart_line();
-                $series = new \core\chart_series('Number of hits', array_values($tab));
-                $chart->add_series($series);
-                $chart->set_labels(array_keys($tab));
-                $tabs[] = ['id' => $key,
-                           'name' => get_string($key, 'block_logreport'),
-                           'active' => empty($tabs),
-                           'content' => html_writer::tag('div', $this->render_chart($chart, false),
-                                                         ['class' => 'blocktimeline'])];
-            }
-            $data = ['tabs' => $tabs];
-            $renderable = new \block_logreport\output\renderreport($data);
-            return $this->render($renderable);
+
+        $output = $this->report_mode_selector($mode);
+
+        $tabsdata = (new \block_logreport\dataprovider)->generate_graphdata($mode);
+        $tabs = [];
+        foreach ($tabsdata as $key => $tab) {
+            $chart = new \core\chart_line();
+            $serieslabel = ($mode === 'users')
+                ? get_string('mode_users', 'block_logreport')
+                : get_string('numberofhits', 'block_logreport');
+            $series = new \core\chart_series($serieslabel, array_values($tab));
+            $chart->add_series($series);
+            $chart->set_labels(array_keys($tab));
+            $tabs[] = ['id' => $key,
+                       'name' => get_string($key, 'block_logreport'),
+                       'active' => empty($tabs),
+                       'content' => html_writer::tag('div', $this->render_chart($chart, false),
+                                                     ['class' => 'blocktimeline'])];
+        }
+        $data = ['tabs' => $tabs];
+        $renderable = new \block_logreport\output\renderreport($data);
+        return $output . $this->render($renderable);
     }
 }
