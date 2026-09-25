@@ -221,7 +221,7 @@ class renderer extends plugin_renderer_base {
             $chart->set_labels(array_keys($tab));
             $tabs[] = ['id' => $key,
                        'name' => get_string($key, 'block_logreport'),
-                       'active' => empty($tabs),
+                       'active' => ($key === 'daily'),
                        'content' => html_writer::tag('div', $this->render_chart($chart, false),
                                                      ['class' => 'blocktimeline'])];
         }

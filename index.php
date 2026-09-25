@@ -50,9 +50,9 @@ $PAGE->requires->js_call_amd('block_logreport/logreport', 'InitDatatable');
 echo $OUTPUT->header();
 $output = $PAGE->get_renderer('block_logreport');
 
-$mode = optional_param('mode', 'hits', PARAM_ALPHA);
+$mode = optional_param('mode', 'users', PARAM_ALPHA);
 if (!in_array($mode, ['hits', 'users'])) {
-    $mode = 'hits';
+    $mode = 'users';
 }
 
 echo $output->charts($mode);
