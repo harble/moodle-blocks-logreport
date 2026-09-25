@@ -38,6 +38,23 @@ class dataprovider extends report_log_table_log {
     public function __construct($uniqueid = 'report_log', $filterparams = null) {
         parent::__construct($uniqueid, $filterparams);
         $this->filterparams = $filterparams;
+
+        // Override headers with localizable strings.
+        $headers = [];
+        if (empty($filterparams->courseid)) {
+            $headers[] = get_string('course', 'block_logreport');
+        }
+        $this->define_headers(array_merge($headers, [
+            get_string('time', 'block_logreport'),
+            get_string('fullnameuser', 'block_logreport'),
+            get_string('relateduser', 'block_logreport'),
+            get_string('context', 'block_logreport'),
+            get_string('component', 'block_logreport'),
+            get_string('eventname', 'block_logreport'),
+            get_string('description', 'block_logreport'),
+            get_string('origin', 'block_logreport'),
+            get_string('ip', 'block_logreport'),
+        ]));
     }
 
     /**
