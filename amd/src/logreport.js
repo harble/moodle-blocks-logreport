@@ -85,20 +85,23 @@
 					 =            Course related activities selection with optgroups            =
 					 ==========================================================================*/
 					 
-					  /*----------  For site level course, only one option available, no optgroups ----------*/
+					  /*----------  activities[0] 才是真正的活动列表，activities[1] 是 $disabled（忽略） ----------*/
+					  var activityData = response.activities[0] || {};
 					  if(courseid == 1){
-					  	$.each(response.activities, function(id, name){
-			  				$('<option value='+ id +'>'+ name +'</option>').appendTo($(FILTER.MODULE));
+					  	/* 站点级别：activities[0] 是平面对象 {site_errors: "本站错误"} */
+					  	$.each(activityData, function(id, name){
+			  				$('<option value="'+ id +'">'+ name +'</option>').appendTo($(FILTER.MODULE));
 				  		})
 					  }else{
-					  	$.each(response.activities, function(key, val){
-						  	$.each(val, function(topic, activities){
-						  		var $optgroup = $("<optgroup>", {label: topic});
-						  		$($optgroup).appendTo($($(FILTER.MODULE)));
-					  			$.each(activities, function(id, name){
-					  				$('<option value='+ id +'>'+ name +'</option>').appendTo($optgroup);
-						  		})
-						  	})
+					  	/* 课程级别：activities[0] 是数组 [{"专题名": {cm_id: cm_name}}, ...] */
+					  	$.each(activityData, function(i, section){
+					  		var sectionName = Object.keys(section)[0];
+					  		var cmList = section[sectionName];
+					  		var $optgroup = $("<optgroup>", {label: sectionName});
+				  			$($optgroup).appendTo($($(FILTER.MODULE)));
+				  			$.each(cmList, function(cmId, cmName){
+				  				$('<option value="'+ cmId +'">'+ cmName +'</option>').appendTo($optgroup);
+					  		})
 					  	});
 					  }
 					  /*=====  End of Course related activities selection with optgroups  ======*/
