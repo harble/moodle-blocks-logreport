@@ -28,6 +28,10 @@ class block_logreport extends block_base {
         $this->title = get_string('pluginname', 'block_logreport');
     }
 
+    public function has_config() {
+        return true;
+    }
+
     public function get_content() {
         global $CFG;
         if ($this->content !== null) {
