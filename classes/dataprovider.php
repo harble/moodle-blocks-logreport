@@ -39,6 +39,21 @@ class dataprovider extends report_log_table_log {
         parent::__construct($uniqueid, $filterparams);
         $this->filterparams = $filterparams;
     }
+
+    /**
+     * Override time column format to display as 年/月.日 时:分:秒.
+     *
+     * @param \stdClass $event
+     * @return string Formatted time string.
+     */
+    public function col_time($event) {
+        if (empty($this->download)) {
+            $dateformat = '%Y/%m/%d %H:%M:%S';
+        } else {
+            $dateformat = '%Y/%m/%d %H:%M:%S';
+        }
+        return userdate($event->timecreated, $dateformat);
+    }
     /**
      * Query the db. Store results in the table object for use by build_table.
      *
@@ -153,9 +168,8 @@ class dataprovider extends report_log_table_log {
     /**
      * Build hit-count buckets for a chart tab.
      *
-     * Buckets are computed in PHP from raw timecreated values rather than
-     * with engine-specific date functions (DATE_FORMAT/TO_CHAR etc.), so
-     * this works the same on every $CFG->dbtype instead of only mysqli/pgsql.
+     * Uses MySQL DATE_FORMAT + GROUP BY for efficient aggregation.
+     * Gaps (hours/days with no logs) are auto-filled with zero counts.
      *
      * @param string $duration hourly|daily|monthly
      * @return array label => hit count, chronological order
@@ -166,30 +180,113 @@ class dataprovider extends report_log_table_log {
         switch ($duration) {
             case 'hourly':
                 $since = time() - DAYSECS;
-                $format = 'h A';
+                $sqlformat = '%Y-%m-%d %h %p';
                 break;
             case 'daily':
                 $since = time() - (30 * DAYSECS);
-                $format = 'jS M Y';
+                $sqlformat = '%Y-%m-%e';
                 break;
             case 'monthly':
             default:
                 $since = time() - (365 * DAYSECS);
-                $format = 'M Y';
+                $sqlformat = '%Y-%m';
                 break;
         }
 
-        $rs = $DB->get_recordset_select('logstore_standard_log', 'timecreated > :since',
-            ['since' => $since], 'timecreated ASC', 'timecreated');
+        // Use MySQL GROUP BY to aggregate counts directly, avoids transferring all raw rows to PHP.
+        $sql = "SELECT DATE_FORMAT(FROM_UNIXTIME(timecreated), '{$sqlformat}') AS label,
+                       COUNT(*) AS hits
+                  FROM {logstore_standard_log}
+                 WHERE timecreated > :since
+              GROUP BY label
+              ORDER BY MIN(timecreated) ASC";
 
+        $records = $DB->get_records_sql($sql, ['since' => $since]);
+
+        // Convert internal sortable labels back to display labels.
         $hitreport = [];
-        foreach ($rs as $record) {
-            $label = date($format, $record->timecreated);
-            $hitreport[$label] = ($hitreport[$label] ?? 0) + 1;
+        foreach ($records as $record) {
+            $displaylabel = $this->format_display_label($record->label, $duration);
+            $hitreport[$displaylabel] = (int)$record->hits;
         }
-        $rs->close();
+
+        // Fill in gaps (hours/days/months with no logs) with zero counts.
+        $hitreport = $this->fill_gaps($hitreport, $duration, $since);
 
         return $hitreport;
+    }
+
+    /**
+     * Convert internal sortable label to human-readable display label.
+     *
+     * @param string $label Internal label (e.g. "2026-08-20 02 AM" or "2026-08-20" or "2026-08")
+     * @param string $duration hourly|daily|monthly
+     * @return string Display label (e.g. "02 AM" or "20th Aug 2026" or "Aug 2026")
+     */
+    private function format_display_label($label, $duration) {
+        switch ($duration) {
+            case 'hourly':
+                // "2026-08-20 02 AM" → "02 AM"
+                $parts = explode(' ', $label, 2);
+                return $parts[1] ?? $label;
+            case 'daily':
+                // "2026-08-20" → "20th Aug 2026"
+                $timestamp = strtotime($label);
+                return date('jS M Y', $timestamp);
+            case 'monthly':
+            default:
+                // "2026-08" → "Aug 2026"
+                $timestamp = strtotime($label . '-01');
+                return date('M Y', $timestamp);
+        }
+    }
+
+    /**
+     * Ensure every bucket exists (fill missing ones with zero).
+     *
+     * @param array $hitreport Existing hits.
+     * @param string $duration hourly|daily|monthly
+     * @param int $since Unix timestamp of start time.
+     * @return array Complete hits with no gaps.
+     */
+    private function fill_gaps($hitreport, $duration, $since) {
+        $now = time();
+        $result = [];
+
+        switch ($duration) {
+            case 'hourly':
+                // Generate all 24 hours for today (aligned to midnight).
+                $midnight = strtotime('today', $now);
+                for ($i = 0; $i < 24; $i++) {
+                    $ts = $midnight + ($i * HOURSECS);
+                    $label = date('h A', $ts);
+                    $result[$label] = $hitreport[$label] ?? 0;
+                }
+                break;
+
+            case 'daily':
+                // Generate all days from $since to now.
+                $start = strtotime(date('Y-m-d', $since));
+                $end = strtotime(date('Y-m-d', $now));
+                for ($ts = $start; $ts <= $end; $ts += DAYSECS) {
+                    $displaylabel = date('jS M Y', $ts);
+                    $result[$displaylabel] = $hitreport[$displaylabel] ?? 0;
+                }
+                break;
+
+            case 'monthly':
+            default:
+                // Generate all months from $since to now.
+                $start = strtotime(date('Y-m-01', $since));
+                $end = strtotime(date('Y-m-01', $now));
+                for ($ts = $start; $ts <= $end; $ts = strtotime('+1 month', $ts)) {
+                    $displaylabel = date('M Y', $ts);
+                    $result[$displaylabel] = $hitreport[$displaylabel] ?? 0;
+                }
+                break;
+        }
+
+        return $result;
     }
 
     public function generate_graphdata() {
