@@ -222,9 +222,9 @@ class renderer extends plugin_renderer_base {
             $content = html_writer::tag('div', $this->render_chart($chart, false),
                                         ['class' => 'blocktimeline']);
 
-            // Only in active users mode: export CSV button under the daily line chart.
-            if ($mode === 'users' && $key === 'daily') {
-                $exporturl = new moodle_url('/blocks/logreport/export.php', ['mode' => 'users']);
+            // Only in active users mode: export CSV button under the daily/monthly line chart.
+            if ($mode === 'users' && in_array($key, ['daily', 'monthly'], true)) {
+                $exporturl = new moodle_url('/blocks/logreport/export.php', ['mode' => 'users', 'duration' => $key]);
                 $content .= html_writer::start_div('text-right mt-2');
                 $content .= html_writer::link($exporturl, get_string('export_csv', 'block_logreport'),
                                               ['class' => 'btn btn-primary btn-sm']);

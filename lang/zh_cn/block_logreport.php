@@ -50,4 +50,5 @@ $string['export_csv'] = '导出CSV报表';
 $string['export_date'] = '统计日期';
 $string['export_total_users'] = '总用户量';
 $string['export_daily_login_users'] = '当日登录用户数';
+$string['export_monthly_login_users'] = '当月登录用户数';
 $string['export_login_rate'] = '当日登陆率';

@@ -50,4 +50,5 @@ $string['export_csv'] = 'Export CSV report';
 $string['export_date'] = 'Date';
 $string['export_total_users'] = 'Total users';
 $string['export_daily_login_users'] = 'Daily logged-in users';
+$string['export_monthly_login_users'] = 'Monthly logged-in users';
 $string['export_login_rate'] = 'Daily login rate';

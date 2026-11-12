@@ -40,17 +40,53 @@ if ($mode !== 'users') {
     throw new moodle_exception('error');
 }
 
-// Build the last 31 days ending at "yesterday".
-$today = strtotime(date('Y-m-d'));       // Midnight today.
-$end = $today;                           // Exclusive upper boundary.
-$since = $today - (31 * DAYSECS);        // Midnight of the day 31 days ago.
+// Supported export granularity: daily / monthly.
+$duration = optional_param('duration', 'daily', PARAM_ALPHA);
+if (!in_array($duration, ['daily', 'monthly'], true)) {
+    $duration = 'daily';
+}
 
-// Daily distinct active (logged-in) user counts within the range.
-$sql = "SELECT DATE_FORMAT(FROM_UNIXTIME(timecreated), '%Y-%m-%d') AS day,
+$today = strtotime(date('Y-m-d'));
+
+switch ($duration) {
+    case 'monthly':
+        // From the current month back up to 24 months (24 rows ending at the current month).
+        $end = strtotime(date('Y-m-01'));   // First day of the current month (exclusive).
+        $since = strtotime('-23 month', $end);
+        $sqlformat = '%Y-%m';
+        $periodfunc = function ($ts) {
+            return date('Y-m', $ts);
+        };
+        $steppfunc = function ($ts) {
+            return strtotime('+1 month', $ts);
+        };
+        $loginuserstr = 'export_monthly_login_users';
+        $filename = 'logreport_monthly_active_users.csv';
+        break;
+
+    case 'daily':
+    default:
+        // From yesterday back up to 100 days (100 rows ending at yesterday).
+        $end = $today;                    // Midnight today (exclusive upper boundary).
+        $since = $today - (100 * DAYSECS); // Midnight of the day 100 days ago.
+        $sqlformat = '%Y-%m-%d';
+        $periodfunc = function ($ts) {
+            return date('Y-m-d', $ts);
+        };
+        $steppfunc = function ($ts) {
+            return $ts + DAYSECS;
+        };
+        $loginuserstr = 'export_daily_login_users';
+        $filename = 'logreport_daily_active_users.csv';
+        break;
+}
+
+// Distinct active (logged-in) user counts within the range.
+$sql = "SELECT DATE_FORMAT(FROM_UNIXTIME(timecreated), '{$sqlformat}') AS period,
                COUNT(DISTINCT userid) AS cnt
           FROM {logstore_standard_log}
          WHERE timecreated >= :since AND timecreated < :end
-      GROUP BY day";
+      GROUP BY period";
 $records = $DB->get_records_sql($sql, ['since' => $since, 'end' => $end]);
 
 // Total users currently in the system (non-deleted).
@@ -63,17 +99,17 @@ fwrite($handle, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel displays Chinese characte
 $headers = [
     get_string('export_date', 'block_logreport'),
     get_string('export_total_users', 'block_logreport'),
-    get_string('export_daily_login_users', 'block_logreport'),
+    get_string($loginuserstr, 'block_logreport'),
     get_string('export_login_rate', 'block_logreport'),
 ];
 fputcsv($handle, $headers);
 
-// Rows run chronologically from 31 days ago up to yesterday (inclusive).
-for ($ts = $since; $ts < $end; $ts += DAYSECS) {
-    $day = date('Y-m-d', $ts);
-    $logincount = isset($records[$day]) ? (int)$records[$day]->cnt : 0;
+// Rows run chronologically ending at the most recent period (yesterday / current month).
+for ($ts = $since; $ts < $end; $ts = $steppfunc($ts)) {
+    $period = $periodfunc($ts);
+    $logincount = isset($records[$period]) ? (int)$records[$period]->cnt : 0;
     $rate = $totalusers > 0 ? number_format($logincount / $totalusers * 100, 2) . '%' : '0%';
-    fputcsv($handle, [$day, $totalusers, $logincount, $rate]);
+    fputcsv($handle, [$period, $totalusers, $logincount, $rate]);
 }
 
 rewind($handle);
@@ -81,5 +117,5 @@ $csv = stream_get_contents($handle);
 fclose($handle);
 
 // Send the file for download.
-send_file($csv, 'logreport_daily_active_users.csv', 0, 0, true, true, 'text/csv');
+send_file($csv, $filename, 0, 0, true, true, 'text/csv');
 exit;
