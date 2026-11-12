@@ -27,9 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 // Prevent creating an empty block settings page under Plugins > Blocks.
 $settings = null;
 
-if ($hassiteconfig) {
-    $ADMIN->add('reports', new admin_externalpage('block_logreport',
-        get_string('pluginname', 'block_logreport'),
-        new moodle_url('/blocks/logreport/index.php')
-    ));
-}
+// The "log report" admin menu entry under Site Administration > Reports is now
+// registered by local/logreportadmin (a `local` plugin, whose settings.php is
+// loaded for all users). A `block` settings.php is only loaded when the user has
+// moodle/site:config, so it would never appear for system managers (Manager role).
