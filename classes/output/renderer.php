@@ -219,11 +219,22 @@ class renderer extends plugin_renderer_base {
             $series = new \core\chart_series($serieslabel, array_values($tab));
             $chart->add_series($series);
             $chart->set_labels(array_keys($tab));
+            $content = html_writer::tag('div', $this->render_chart($chart, false),
+                                        ['class' => 'blocktimeline']);
+
+            // Only in active users mode: export CSV button under the daily line chart.
+            if ($mode === 'users' && $key === 'daily') {
+                $exporturl = new moodle_url('/blocks/logreport/export.php', ['mode' => 'users']);
+                $content .= html_writer::start_div('text-right mt-2');
+                $content .= html_writer::link($exporturl, get_string('export_csv', 'block_logreport'),
+                                              ['class' => 'btn btn-primary btn-sm']);
+                $content .= html_writer::end_div();
+            }
+
             $tabs[] = ['id' => $key,
                        'name' => get_string($key, 'block_logreport'),
                        'active' => ($key === 'daily'),
-                       'content' => html_writer::tag('div', $this->render_chart($chart, false),
-                                                     ['class' => 'blocktimeline'])];
+                       'content' => $content];
         }
         $data = ['tabs' => $tabs];
         $renderable = new \block_logreport\output\renderreport($data);
